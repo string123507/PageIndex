@@ -157,6 +157,13 @@ Create a `.env` file in the root directory with your LLM API key, with multi-LLM
 OPENAI_API_KEY=your_openai_key_here
 ```
 
+For Finmall OpenAI-compatible endpoint, you can also set:
+
+```bash
+FINMALL_API_KEY=your_finmall_key_here
+FINMALL_API_BASE=https://api.finmall.com/v1
+```
+
 ### 3. Generate PageIndex structure for your PDF
 
 ```bash
@@ -177,6 +184,15 @@ You can customize the processing with additional optional arguments:
 --if-add-node-summary   Add node summary (yes/no, default: yes)
 --if-add-doc-description Add doc description (yes/no, default: yes)
 ```
+
+For your Finmall model, run:
+
+```bash
+# Ensure FINMALL_API_KEY and FINMALL_API_BASE are set first
+python3 run_pageindex.py --pdf_path /path/to/your/document.pdf --model Qwen3.5-27B
+```
+
+`Qwen3.5-27B` will be auto-routed for Finmall; `openai/Qwen3.5-27B` is also supported.
 </details>
 
 <details>

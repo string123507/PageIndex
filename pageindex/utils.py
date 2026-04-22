@@ -16,12 +16,39 @@ import logging
 import yaml
 from pathlib import Path
 from types import SimpleNamespace as config
+from urllib.parse import urlparse
 
 # Backward compatibility: support CHATGPT_API_KEY as alias for OPENAI_API_KEY
 if not os.getenv("OPENAI_API_KEY") and os.getenv("CHATGPT_API_KEY"):
     os.environ["OPENAI_API_KEY"] = os.getenv("CHATGPT_API_KEY")
+if not os.getenv("OPENAI_API_KEY") and os.getenv("FINMALL_API_KEY"):
+    os.environ["OPENAI_API_KEY"] = os.getenv("FINMALL_API_KEY")
+if not os.getenv("OPENAI_API_BASE") and os.getenv("FINMALL_API_BASE"):
+    os.environ["OPENAI_API_BASE"] = os.getenv("FINMALL_API_BASE")
 
 litellm.drop_params = True
+
+def _is_finmall_base_url(api_base: str) -> bool:
+    parsed = urlparse(api_base)
+    if parsed.scheme not in {"http", "https"}:
+        return False
+    return (parsed.hostname or "").lower() == "api.finmall.com"
+
+
+def _normalize_model_for_litellm(model: str | None) -> str | None:
+    if not model:
+        return model
+    normalized_model = model.removeprefix("litellm/")
+    if "/" not in normalized_model and _is_finmall_base_url(os.getenv("OPENAI_API_BASE", "")):
+        return f"openai/{normalized_model}"
+    return normalized_model
+
+
+def _get_provider_extra_params() -> dict:
+    if _is_finmall_base_url(os.getenv("OPENAI_API_BASE", "")):
+        return {"extra_body": {"chat_template_kwargs": {"enable_thinking": False}}}
+    return {}
+
 
 def count_tokens(text, model=None):
     if not text:
@@ -30,8 +57,8 @@ def count_tokens(text, model=None):
 
 
 def llm_completion(model, prompt, chat_history=None, return_finish_reason=False):
-    if model:
-        model = model.removeprefix("litellm/")
+    model = _normalize_model_for_litellm(model)
+    extra_params = _get_provider_extra_params()
     max_retries = 10
     messages = list(chat_history) + [{"role": "user", "content": prompt}] if chat_history else [{"role": "user", "content": prompt}]
     for i in range(max_retries):
@@ -40,6 +67,7 @@ def llm_completion(model, prompt, chat_history=None, return_finish_reason=False)
                 model=model,
                 messages=messages,
                 temperature=0,
+                **extra_params,
             )
             content = response.choices[0].message.content
             if return_finish_reason:
@@ -60,8 +88,8 @@ def llm_completion(model, prompt, chat_history=None, return_finish_reason=False)
 
 
 async def llm_acompletion(model, prompt):
-    if model:
-        model = model.removeprefix("litellm/")
+    model = _normalize_model_for_litellm(model)
+    extra_params = _get_provider_extra_params()
     max_retries = 10
     messages = [{"role": "user", "content": prompt}]
     for i in range(max_retries):
@@ -70,6 +98,7 @@ async def llm_acompletion(model, prompt):
                 model=model,
                 messages=messages,
                 temperature=0,
+                **extra_params,
             )
             return response.choices[0].message.content
         except Exception as e:
@@ -707,4 +736,3 @@ def print_tree(tree, indent=0):
 def print_wrapped(text, width=100):
     for line in text.splitlines():
         print(textwrap.fill(line, width=width))
-
