@@ -20,8 +20,27 @@ from types import SimpleNamespace as config
 # Backward compatibility: support CHATGPT_API_KEY as alias for OPENAI_API_KEY
 if not os.getenv("OPENAI_API_KEY") and os.getenv("CHATGPT_API_KEY"):
     os.environ["OPENAI_API_KEY"] = os.getenv("CHATGPT_API_KEY")
+if not os.getenv("OPENAI_API_KEY") and os.getenv("FINMALL_API_KEY"):
+    os.environ["OPENAI_API_KEY"] = os.getenv("FINMALL_API_KEY")
+if not os.getenv("OPENAI_API_BASE") and os.getenv("FINMALL_API_BASE"):
+    os.environ["OPENAI_API_BASE"] = os.getenv("FINMALL_API_BASE")
 
 litellm.drop_params = True
+
+def _normalize_model_for_litellm(model: str | None) -> str | None:
+    if model:
+        model = model.removeprefix("litellm/")
+        if "/" not in model and os.getenv("OPENAI_API_BASE"):
+            return f"openai/{model}"
+    return model
+
+
+def _get_provider_extra_params() -> dict:
+    api_base = os.getenv("OPENAI_API_BASE", "")
+    if "api.finmall.com" in api_base:
+        return {"extra_body": {"chat_template_kwargs": {"enable_thinking": False}}}
+    return {}
+
 
 def count_tokens(text, model=None):
     if not text:
@@ -30,8 +49,8 @@ def count_tokens(text, model=None):
 
 
 def llm_completion(model, prompt, chat_history=None, return_finish_reason=False):
-    if model:
-        model = model.removeprefix("litellm/")
+    model = _normalize_model_for_litellm(model)
+    extra_params = _get_provider_extra_params()
     max_retries = 10
     messages = list(chat_history) + [{"role": "user", "content": prompt}] if chat_history else [{"role": "user", "content": prompt}]
     for i in range(max_retries):
@@ -40,6 +59,7 @@ def llm_completion(model, prompt, chat_history=None, return_finish_reason=False)
                 model=model,
                 messages=messages,
                 temperature=0,
+                **extra_params,
             )
             content = response.choices[0].message.content
             if return_finish_reason:
@@ -60,8 +80,8 @@ def llm_completion(model, prompt, chat_history=None, return_finish_reason=False)
 
 
 async def llm_acompletion(model, prompt):
-    if model:
-        model = model.removeprefix("litellm/")
+    model = _normalize_model_for_litellm(model)
+    extra_params = _get_provider_extra_params()
     max_retries = 10
     messages = [{"role": "user", "content": prompt}]
     for i in range(max_retries):
@@ -70,6 +90,7 @@ async def llm_acompletion(model, prompt):
                 model=model,
                 messages=messages,
                 temperature=0,
+                **extra_params,
             )
             return response.choices[0].message.content
         except Exception as e:
@@ -707,4 +728,3 @@ def print_tree(tree, indent=0):
 def print_wrapped(text, width=100):
     for line in text.splitlines():
         print(textwrap.fill(line, width=width))
-
