@@ -188,8 +188,11 @@ You can customize the processing with additional optional arguments:
 For your Finmall model, run:
 
 ```bash
+# Ensure FINMALL_API_KEY and FINMALL_API_BASE are set first
 python3 run_pageindex.py --pdf_path /path/to/your/document.pdf --model Qwen3.5-27B
 ```
+
+`Qwen3.5-27B` will be auto-routed for Finmall; `openai/Qwen3.5-27B` is also supported.
 </details>
 
 <details>

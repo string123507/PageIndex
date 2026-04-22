@@ -16,6 +16,7 @@ import logging
 import yaml
 from pathlib import Path
 from types import SimpleNamespace as config
+from urllib.parse import urlparse
 
 # Backward compatibility: support CHATGPT_API_KEY as alias for OPENAI_API_KEY
 if not os.getenv("OPENAI_API_KEY") and os.getenv("CHATGPT_API_KEY"):
@@ -27,17 +28,24 @@ if not os.getenv("OPENAI_API_BASE") and os.getenv("FINMALL_API_BASE"):
 
 litellm.drop_params = True
 
+def _is_finmall_base_url(api_base: str) -> bool:
+    parsed = urlparse(api_base)
+    if parsed.scheme not in {"http", "https"}:
+        return False
+    return (parsed.hostname or "").lower() == "api.finmall.com"
+
+
 def _normalize_model_for_litellm(model: str | None) -> str | None:
-    if model:
-        model = model.removeprefix("litellm/")
-        if "/" not in model and os.getenv("OPENAI_API_BASE"):
-            return f"openai/{model}"
-    return model
+    if not model:
+        return model
+    normalized_model = model.removeprefix("litellm/")
+    if "/" not in normalized_model and _is_finmall_base_url(os.getenv("OPENAI_API_BASE", "")):
+        return f"openai/{normalized_model}"
+    return normalized_model
 
 
 def _get_provider_extra_params() -> dict:
-    api_base = os.getenv("OPENAI_API_BASE", "")
-    if "api.finmall.com" in api_base:
+    if _is_finmall_base_url(os.getenv("OPENAI_API_BASE", "")):
         return {"extra_body": {"chat_template_kwargs": {"enable_thinking": False}}}
     return {}
 
